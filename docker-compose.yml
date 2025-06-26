@@ -2,6 +2,9 @@
 # Master orchestration file for the Topotrek Data Pipeline.
 # This file defines the services for generating the OSM basemap and converting to PMTiles.
 
+# The version '3.8' is a modern, stable version of the Docker Compose file format.
+version: "3.8"
+
 # Defines a named volume for persisting the PostgreSQL database data across runs.
 # This avoids re-downloading and re-importing the entire database on every run,
 # which is crucial for development speed, though for full rebuilds, this volume can be cleared.
@@ -17,7 +20,7 @@ networks:
 services:
   # The PostGIS database service. The core engine of the pipeline.
   postgres:
-    image: "${POSTGIS_IMAGE:-ghcr.io/openmaptiles/postgis}:${TOOLS_VERSION}"
+    image: "${POSTGIS_IMAGE:-openmaptiles/postgis}:${TOOLS_VERSION}"
     volumes:
       - pgdata:/var/lib/postgresql/data
     networks:
@@ -35,7 +38,7 @@ services:
   # Service to download OSM data from Geofabrik.
   # It is a short-lived container that runs a script and exits.
   download-geofabrik:
-    image: "ghcr.io/openmaptiles/import-data:${TOOLS_VERSION}"
+    image: "openmaptiles/import-data:${TOOLS_VERSION}"
     command: download-geofabrik
     env_file: .env
     volumes:
@@ -45,14 +48,14 @@ services:
 
   # Service to import supplementary data (Natural Earth, etc.).
   import-data:
-    image: "ghcr.io/openmaptiles/import-data:${TOOLS_VERSION}"
+    image: "openmaptiles/import-data:${TOOLS_VERSION}"
     env_file: .env
     networks:
       - postgres_net
 
   # The main OSM data importer using imposm3.
   import-osm:
-    image: "ghcr.io/openmaptiles/import-osm:${TOOLS_VERSION}"
+    image: "openmaptiles/import-osm:${TOOLS_VERSION}"
     env_file: .env
     volumes:
       - ./data:/import
@@ -64,7 +67,7 @@ services:
 
   # Imports multilingual labels from Wikidata.
   import-wikidata:
-    image: "ghcr.io/openmaptiles/import-wikidata:${TOOLS_VERSION}"
+    image: "openmaptiles/import-wikidata:${TOOLS_VERSION}"
     env_file: .env
     depends_on:
       - postgres
@@ -73,9 +76,7 @@ services:
 
   # Executes post-import SQL functions and optimizations.
   import-sql:
-    # Correcting the image name based on the documentation screenshot.
-    # The full image name is required.
-    image: "ghcr.io/openmaptiles/openmaptiles-tools:latest"
+    image: "openmaptiles/openmaptiles-tools:${TOOLS_VERSION}"
     command: import-sql
     env_file: .env
     volumes:
@@ -87,7 +88,7 @@ services:
 
   # The final tile generation service.
   generate-vectortiles:
-    image: "ghcr.io/openmaptiles/generate-vectortiles:${TOOLS_VERSION}"
+    image: "openmaptiles/generate-vectortiles:${TOOLS_VERSION}"
     env_file: .env
     volumes:
       - ./data:/export
@@ -105,8 +106,7 @@ services:
   # Utility service to convert the final.mbtiles to.pmtiles.
   pmtiles-converter:
     # Using a specific version of the protomaps/pmtiles image for stability.
-    # The image has been moved from Docker Hub to GitHub Container Registry (ghcr.io).
-    image: "ghcr.io/protomaps/pmtiles:v1.10.1"
+    image: "protomaps/pmtiles:1.10.1"
     env_file: .env
     volumes:
       - ./data:/data

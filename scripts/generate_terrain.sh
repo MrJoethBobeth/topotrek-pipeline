@@ -19,7 +19,7 @@ set -e
 
 # Load variables from.env for BBOX, API key, etc.
 set -o allexport
-source.env
+source .env
 set +o allexport
 
 TERRAIN_DIR="./data/terrain"
@@ -31,7 +31,7 @@ OUTPUT_FILENAME="us-northeast-terrain.pmtiles"
 echo "---"
 echo "STEP 1: Building GDAL processing image..."
 echo "---"
-docker build -t topotrek/gdal-processor -f docker/Dockerfile.gdal.
+docker build -t topotrek/gdal-processor -f docker/Dockerfile.gdal .
 
 echo "---"
 echo "STEP 2: Setting up terrain directories..."
@@ -48,7 +48,7 @@ echo "---"
 # For this example, we assume the files are manually placed for now.
 # python3 scripts/download_dem.py
 echo "Skipping download for now. Assuming DEM files exist in ${RAW_DEM_DIR}"
-if; then
+if [ -z "$(ls -A $RAW_DEM_DIR)" ]; then
    echo "Error: ${RAW_DEM_DIR} is empty. Please add source GeoTIFF files."
    exit 1
 fi
@@ -77,8 +77,8 @@ echo "---"
 echo "STEP 5: Packaging tiles into PMTiles archive..."
 echo "---"
 # Use the pmtiles CLI to convert the directory of tiles into a single archive.
-docker run --rm -v "$(pwd)/data:/data" protomaps/pmtiles:1.10.1 \
-  convert ${TILES_DIR} /data/${OUTPUT_FILENAME}
+docker run --rm -v "$(pwd)/data:/data" protomaps/go-pmtiles \
+  pmtiles convert /data/tiles /data/${OUTPUT_FILENAME}
 
 echo "---"
 echo "SUCCESS: Terrain generation complete."

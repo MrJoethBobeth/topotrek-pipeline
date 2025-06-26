@@ -25,56 +25,56 @@ docker-compose pull
 echo "---"
 echo "STEP 2: Initializing directories..."
 echo "---"
-# The 'make' command reads the Makefile from the openmaptiles project
-# to create necessary directories like./data and./build.
-make
+# Create the necessary directories for data and build artifacts.
+mkdir -p ./data ./build
 
 echo "---"
 echo "STEP 3: Downloading OSM data for US Northeast from Geofabrik..."
 echo "---"
-# This command runs the 'import-data' service defined in docker-compose.yml
-# but overrides its default command to run the download script for Geofabrik.
-# The GEOFABRIK_PATH from.env is used to target the correct file.
+# The import-data image expects the action as a direct command, not a script.
 docker-compose run --rm import-data download-geofabrik
 
 echo "---"
 echo "STEP 4: Importing supplementary data (Natural Earth, Lake Labels)..."
 echo "---"
-docker-compose run --rm import-data
+# This also uses the import-data image with a different command.
+docker-compose run --rm import-data import-data
 
 echo "---"
 echo "STEP 5: Importing OpenStreetMap data into PostGIS..."
 echo "This is a long-running step."
 echo "---"
-docker-compose run --rm import-osm
+# Run the OSM import script
+docker-compose run --rm import-osm ./import-osm.sh
 
 echo "---"
 echo "STEP 6: Importing Wikidata for multilingual labels..."
 echo "---"
-docker-compose run --rm import-wikidata
+# Run the Wikidata import script
+docker-compose run --rm import-wikidata ./import-wikidata.sh
 
 echo "---"
 echo "STEP 7: Running SQL post-processing..."
 echo "---"
-docker-compose run --rm import-sql
+# Run the SQL import script
+docker-compose run --rm import-sql ./import-sql.sh
 
 echo "---"
 echo "STEP 8: Generating vector tiles..."
 echo "This is the final, long-running generation step."
 echo "---"
-docker-compose run --rm generate-vectortiles
+# Run the tile generation script
+docker-compose run --rm generate-vectortiles ./generate-vectortiles.sh
 
 # Load variables from.env file to get the output filename
 set -o allexport
-source.env
+source .env
 set +o allexport
 
 echo "---"
 echo "SUCCESS: Basemap generation complete."
 echo "Output file created at:./data/${MBTILES_FILE}"
 echo "---"
-
-#... (previous steps from Section 3.4)...
 
 echo "---"
 echo "STEP 9: Converting MBTiles to cloud-optimized PMTiles..."

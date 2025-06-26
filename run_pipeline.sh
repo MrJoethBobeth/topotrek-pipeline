@@ -2,16 +2,16 @@
 set -e
 
 # ==============================================================================
-# MASTER PIPELINE CONTROL SCRIPT
+# MASTER PIPELINE CONTROL SCRIPT (MODERNIZED)
 #
 # Usage: ./run_pipeline.sh [all|basemap|terrain|upload|clean]
 #
 # Arguments:
 #   all       - Runs the full pipeline: basemap, terrain, and upload.
-#   basemap   - Generates only the OSM vector basemap and converts to PMTiles.
-#   terrain   - Generates only the Terrain-RGB tiles and packages into PMTiles.
+#   basemap   - Generates only the vector basemap using Planetiler.
+#   terrain   - Generates only the Quantized Mesh terrain tiles using ctod.
 #   upload    - Uploads existing .pmtiles files from the ./data directory to R2.
-#   clean     - Removes generated data and Docker volumes to start fresh.
+#   clean     - Removes generated data and build artifacts.
 # ==============================================================================
 
 # --- Argument Parsing ---
@@ -58,8 +58,10 @@ run_clean() {
     echo "========================================="
     echo "  CLEANING PROJECT WORKSPACE           "
     echo "========================================="
-    echo "Stopping and removing containers, networks, and volumes..."
-    docker-compose down -v
+    # The docker-compose command was removed as it is no longer used.
+    # We can also add a docker system prune command to clean up any dangling images or containers.
+    echo "Pruning unused Docker images and containers..."
+    docker system prune -f
     echo "Removing generated data..."
     rm -rf ./data/* ./build/*
     # Keep .gitkeep files if they exist
@@ -67,7 +69,6 @@ run_clean() {
     echo "Cleanup complete."
     echo "========================================="
 }
-
 
 # --- Main Execution Logic ---
 

@@ -1,89 +1,52 @@
 #!/bin/bash
 set -e # Exit immediately if a command exits with a non-zero status.
 
-# ==============================================================================
-# GENERATE BASEMAP SCRIPT
+#=======================================================================
+# GENERATE BASEMAP SCRIPT (MODERNIZED WITH PLANETILER)
 #
-# This script orchestrates the OpenMapTiles pipeline to generate a vector tile
-# basemap for the region specified in the.env file.
-#
-# It performs the following steps:
-# 1. Pulls the latest required Docker images.
-# 2. Initializes required directories.
-# 3. Downloads the specified OSM data from Geofabrik.
-# 4. Imports supplementary data (Natural Earth, etc.).
-# 5. Imports the main OSM data into PostGIS.
-# 6. Imports Wikidata for multilingual labels.
-# 7. Generates the final vector tiles in.mbtiles format.
-# ==============================================================================
+# This script uses Planetiler to generate a vector tile basemap.
+# It performs all steps in a single container:
+# 1. Downloads the specified OSM data from Geofabrik.
+# 2. Processes the data and generates vector tiles.
+# 3. Outputs a cloud-optimized .pmtiles file directly.
+#=======================================================================
 
-echo "---"
-echo "STEP 1: Pulling OpenMapTiles Docker images..."
-echo "---"
-docker-compose pull
-
-echo "---"
-echo "STEP 2: Initializing directories..."
-echo "---"
-# Create the necessary directories for data and build artifacts.
-mkdir -p ./data ./build
-
-echo "---"
-echo "STEP 3: Downloading OSM data for US Northeast from Geofabrik..."
-echo "---"
-# The import-data image expects the action as a direct command, not a script.
-docker-compose run --rm import-data download-geofabrik
-
-echo "---"
-echo "STEP 4: Importing supplementary data (Natural Earth, Lake Labels)..."
-echo "---"
-# This also uses the import-data image with a different command.
-docker-compose run --rm import-data import-data
-
-echo "---"
-echo "STEP 5: Importing OpenStreetMap data into PostGIS..."
-echo "This is a long-running step."
-echo "---"
-# Run the OSM import script
-docker-compose run --rm import-osm ./import-osm.sh
-
-echo "---"
-echo "STEP 6: Importing Wikidata for multilingual labels..."
-echo "---"
-# Run the Wikidata import script
-docker-compose run --rm import-wikidata ./import-wikidata.sh
-
-echo "---"
-echo "STEP 7: Running SQL post-processing..."
-echo "---"
-# Run the SQL import script
-docker-compose run --rm import-sql ./import-sql.sh
-
-echo "---"
-echo "STEP 8: Generating vector tiles..."
-echo "This is the final, long-running generation step."
-echo "---"
-# Run the tile generation script
-docker-compose run --rm generate-vectortiles ./generate-vectortiles.sh
-
-# Load variables from.env file to get the output filename
+# --- Configuration ---
+# Load variables from .env file (BBOX, GEOFABRIK_PATH, etc.)
 set -o allexport
 source .env
 set +o allexport
 
+OUTPUT_DIR="./data"
+# Construct the output filename from the .env variable
+OUTPUT_FILE="${OUTPUT_DIR}/${MBTILES_FILE%.*}.pmtiles"
+PLANETILER_IMAGE="ghcr.io/onthegomap/planetiler:latest"
+
+# Ensure output directory exists
+mkdir -p ${OUTPUT_DIR}
+
+echo "---"
+echo "STEP 1: Starting Planetiler to generate vector tiles..."
+echo "Source Region: ${GEOFABRIK_PATH}"
+echo "Output: ${OUTPUT_FILE}"
+echo "This may take some time, but will be much faster than the previous pipeline."
+echo "---"
+
+# Run Planetiler in a Docker container
+# It requires significant RAM, so we allocate it directly.
+# The command downloads the PBF for the specified area, clips it to the BBOX,
+# and generates the pmtiles.
+# We use `basename` to extract just the region name (e.g., "us-northeast") from the full path.
+docker run --rm \
+  -e "JAVA_TOOL_OPTIONS=-Xmx16g" \
+  -v "$(pwd)/data:/data" \
+  ${PLANETILER_IMAGE} \
+  --area=$(basename "${GEOFABRIK_PATH}") \
+  --bounds=${BBOX} \
+  --download \
+  --output="/data/${MBTILES_FILE%.*}.pmtiles"
+
 echo "---"
 echo "SUCCESS: Basemap generation complete."
-echo "Output file created at:./data/${MBTILES_FILE}"
-echo "---"
-
-echo "---"
-echo "STEP 9: Converting MBTiles to cloud-optimized PMTiles..."
-echo "---"
-docker-compose run --rm pmtiles-converter
-
-echo "---"
-echo "SUCCESS: PMTiles conversion complete."
-# The output filename will be the MBTILES_FILE name with the extension changed.
-PMTILES_FILE="${MBTILES_FILE%.*}.pmtiles"
-echo "Final artifact created at:./data/${PMTILES_FILE}"
+echo "Final artifact created at: ${OUTPUT_FILE}"
 echo "---"

@@ -1,9 +1,8 @@
-
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8" />
-    <title>Topotrek PMTiles Viewer</title>
+    <title>Topotrek PMTiles Viewer (Local Test)</title>
     <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
     <script src="https://unpkg.com/maplibre-gl@4.1.0/dist/maplibre-gl.js"></script>
     <link href="https://unpkg.com/maplibre-gl@4.1.0/dist/maplibre-gl.css" rel="stylesheet" />
@@ -11,17 +10,40 @@
     <style>
         body { margin: 0; padding: 0; }
         #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+        .instructions {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px;
+            border-radius: 8px;
+            font-family: sans-serif;
+            max-width: 400px;
+            z-index: 1000;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
     </style>
 </head>
 <body>
-<div id="map"></div>
-<script>
-    // Replace with your Cloudflare R2 Public Bucket URL
-    // e.g., https://pub-xxxxxxxx.r2.dev
-    const R2_PUBLIC_URL = "https://pub-1636e051e3464ab48e64a0f8d95a6444.r2.dev";
 
-    const BASEMAP_URL = `${R2_PUBLIC_URL}/basemap/us-northeast-osm.pmtiles`;
-    const TERRAIN_URL = `${R2_PUBLIC_URL}/terrain/us-northeast-terrain.pmtiles`;
+<div class="instructions">
+    <strong>How to Test Locally:</strong>
+    <ol>
+        <li>Open a terminal in your project's root directory (the `topotrek-pipeline` folder).</li>
+        <li>Run this command: <br><code>python3 -m http.server</code></li>
+        <li>Open your web browser and go to:<br><strong>http://localhost:8000/index.html</strong></li>
+    </ol>
+    <p>This serves your project folder over HTTP, allowing the map to access the local PMTiles file.</p>
+</div>
+
+<div id="map"></div>
+
+<script>
+    const relativeBasemapUrl = '/data/us-northeast-osm.pmtiles';
+
+    // FIX: Construct a full, absolute URL from the relative path.
+    // This resolves ambiguity and prevents the "callback is not a function" error.
+    const absoluteBasemapUrl = new URL(relativeBasemapUrl, window.location.href).href;
 
     // Initialize the PMTiles protocol for MapLibre
     let protocol = new pmtiles.Protocol();
@@ -32,22 +54,13 @@
         style: {
             version: 8,
             sources: {
-                // Basemap vector tile source from PMTiles
                 'basemap-source': {
                     type: 'vector',
-                    url: `pmtiles://${BASEMAP_URL}`,
+                    // The URL now uses the full, absolute path.
+                    url: `pmtiles://${absoluteBasemapUrl}`,
                     attribution: '© OpenMapTiles © OpenStreetMap contributors'
-                },
-                // Terrain-RGB raster DEM source from PMTiles
-                'terrain-source': {
-                    type: 'raster-dem',
-                    url: `pmtiles://${TERRAIN_URL}`,
-                    tileSize: 256,
-                    encoding: 'terrarium' // Use 'terrarium' for Mapbox/MapLibre Terrain-RGB
                 }
             },
-            // Add layers to style the basemap. This is a minimal example.
-            // A full style.json would be used in a real application.
             layers: [
                 {
                     'id': 'background',
@@ -68,25 +81,16 @@
                     'source-layer': 'transportation',
                     'paint': { 'line-color': '#999' }
                 }
-            ],
-            // Enable 3D terrain using the terrain source
-            terrain: {
-                source: 'terrain-source',
-                exaggeration: 1.5 // Adjust for more dramatic terrain
-            }
+            ]
         },
         center: [-73.985, 40.748], // Centered on NYC
         zoom: 9,
-        pitch: 60,
+        pitch: 0,
         bearing: -20
     });
 
     // Add navigation controls
     map.addControl(new maplibregl.NavigationControl(), 'top-right');
-    map.addControl(new maplibregl.TerrainControl({
-        source: 'terrain-source',
-        exaggeration: 1.5
-    }), 'top-right');
 
 </script>
 </body>

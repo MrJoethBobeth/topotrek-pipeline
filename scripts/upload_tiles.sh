@@ -13,9 +13,10 @@ set -e
 # 4. Cleans up the temporary config file.
 # ==============================================================================
 
-# Load variables from.env file
+# Load variables from .env file
+# FIX: Added a space between 'source' and '.env'
 set -o allexport
-source.env
+source .env
 set +o allexport
 
 # --- Configuration ---
@@ -25,9 +26,9 @@ R2_BUCKET="topotrek-tiles"
 SOURCE_DIR="./data"
 
 # --- Validate Credentials ---
-if |
-| ||; then
-    echo "Error: Cloudflare R2 credentials not found in.env file."
+# FIX: Replaced the garbled 'if' statement with a valid check for empty variables.
+if [ -z "${CF_ACCOUNT_ID}" ] || [ -z "${CF_ACCESS_KEY_ID}" ] || [ -z "${CF_SECRET_ACCESS_KEY}" ]; then
+    echo "Error: Cloudflare R2 credentials not found in .env file."
     echo "Please set CF_ACCOUNT_ID, CF_ACCESS_KEY_ID, and CF_SECRET_ACCESS_KEY."
     exit 1
 fi
@@ -59,19 +60,24 @@ RCLONE_CMD="docker run --rm \
     rclone/rclone"
 
 # Sync basemap tiles
-BASENAME_PMTILES=$(basename -- "$(find $SOURCE_DIR -name '*-osm.pmtiles' -print -quit)")
-if; then
-    echo "Uploading basemap: $BASENAME_PMTILES"
-    $RCLONE_CMD copy "/data/$BASENAME_PMTILES" "r2:${R2_BUCKET}/basemap/" --progress
+BASENAME_PMTILES=$(find "$SOURCE_DIR" -name 'us-northeast-osm.pmtiles' -print -quit)
+# FIX: Replaced 'if;' with a valid check to see if the file was found.
+if [ -n "$BASENAME_PMTILES" ]; then
+    echo "Uploading basemap: $(basename "$BASENAME_PMTILES")"
+    # The path inside the container is just /data/filename.
+    # FIX: Added --s3-no-check-bucket to skip the bucket existence check.
+    $RCLONE_CMD copy "/data/$(basename "$BASENAME_PMTILES")" "r2:${R2_BUCKET}/basemap/" --progress --s3-no-check-bucket
 else
     echo "No basemap PMTiles file found to upload."
 fi
 
 # Sync terrain tiles
-TERRAIN_PMTILES=$(basename -- "$(find $SOURCE_DIR -name '*-terrain.pmtiles' -print -quit)")
-if; then
-    echo "Uploading terrain: $TERRAIN_PMTILES"
-    $RCLONE_CMD copy "/data/$TERRAIN_PMTILES" "r2:${R2_BUCKET}/terrain/" --progress
+TERRAIN_PMTILES=$(find "$SOURCE_DIR" -name 'us-northeast-terrain.pmtiles' -print -quit)
+# FIX: Replaced 'if;' with a valid check to see if the file was found.
+if [ -n "$TERRAIN_PMTILES" ]; then
+    echo "Uploading terrain: $(basename "$TERRAIN_PMTILES")"
+    # FIX: Added --s3-no-check-bucket to skip the bucket existence check.
+    $RCLONE_CMD copy "/data/$(basename "$TERRAIN_PMTILES")" "r2:${R2_BUCKET}/terrain/" --progress --s3-no-check-bucket
 else
     echo "No terrain PMTiles file found to upload."
 fi
@@ -79,3 +85,5 @@ fi
 echo "---"
 echo "SUCCESS: Upload to Cloudflare R2 complete."
 echo "---"
+
+# FIX: Removed the extraneous closing brace '}' that was at the end of the original file.

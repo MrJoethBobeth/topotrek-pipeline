@@ -1,0 +1,93 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Topotrek PMTiles Viewer</title>
+    <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
+    <script src="https://unpkg.com/maplibre-gl@4.1.0/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@4.1.0/dist/maplibre-gl.css" rel="stylesheet" />
+    <script src="https://unpkg.com/pmtiles@2.10.0/dist/index.js"></script>
+    <style>
+        body { margin: 0; padding: 0; }
+        #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+    </style>
+</head>
+<body>
+<div id="map"></div>
+<script>
+    // Replace with your Cloudflare R2 Public Bucket URL
+    // e.g., https://pub-xxxxxxxx.r2.dev
+    const R2_PUBLIC_URL = "https://pub-1636e051e3464ab48e64a0f8d95a6444.r2.dev";
+
+    const BASEMAP_URL = `${R2_PUBLIC_URL}/basemap/us-northeast-osm.pmtiles`;
+    const TERRAIN_URL = `${R2_PUBLIC_URL}/terrain/us-northeast-terrain.pmtiles`;
+
+    // Initialize the PMTiles protocol for MapLibre
+    let protocol = new pmtiles.Protocol();
+    maplibregl.addProtocol("pmtiles", protocol.tile);
+
+    const map = new maplibregl.Map({
+        container: 'map',
+        style: {
+            version: 8,
+            sources: {
+                // Basemap vector tile source from PMTiles
+                'basemap-source': {
+                    type: 'vector',
+                    url: `pmtiles://${BASEMAP_URL}`,
+                    attribution: '© OpenMapTiles © OpenStreetMap contributors'
+                },
+                // Terrain-RGB raster DEM source from PMTiles
+                'terrain-source': {
+                    type: 'raster-dem',
+                    url: `pmtiles://${TERRAIN_URL}`,
+                    tileSize: 256,
+                    encoding: 'terrarium' // Use 'terrarium' for Mapbox/MapLibre Terrain-RGB
+                }
+            },
+            // Add layers to style the basemap. This is a minimal example.
+            // A full style.json would be used in a real application.
+            layers: [
+                {
+                    'id': 'background',
+                    'type': 'background',
+                    'paint': { 'background-color': '#f8f4f0' }
+                },
+                {
+                    'id': 'water',
+                    'type': 'fill',
+                    'source': 'basemap-source',
+                    'source-layer': 'water',
+                    'paint': { 'fill-color': '#a0c8f0' }
+                },
+                {
+                    'id': 'roads',
+                    'type': 'line',
+                    'source': 'basemap-source',
+                    'source-layer': 'transportation',
+                    'paint': { 'line-color': '#999' }
+                }
+            ],
+            // Enable 3D terrain using the terrain source
+            terrain: {
+                source: 'terrain-source',
+                exaggeration: 1.5 // Adjust for more dramatic terrain
+            }
+        },
+        center: [-73.985, 40.748], // Centered on NYC
+        zoom: 9,
+        pitch: 60,
+        bearing: -20
+    });
+
+    // Add navigation controls
+    map.addControl(new maplibregl.NavigationControl(), 'top-right');
+    map.addControl(new maplibregl.TerrainControl({
+        source: 'terrain-source',
+        exaggeration: 1.5
+    }), 'top-right');
+
+</script>
+</body>
+</html>

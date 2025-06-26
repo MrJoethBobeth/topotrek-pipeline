@@ -1,0 +1,10 @@
+# config/rclone.conf.template
+[r2]
+type = s3
+provider = Cloudflare
+env_auth = false
+access_key_id = ${CF_ACCESS_KEY_ID}
+secret_access_key = ${CF_SECRET_ACCESS_KEY}
+endpoint = https://${CF_ACCOUNT_ID}.r2.cloudflarestorage.com
+# 'acl = private' is important for compatibility with R2's S3 API implementation.
+acl = private

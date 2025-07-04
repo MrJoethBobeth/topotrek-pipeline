@@ -33,15 +33,16 @@ for attempt in range(MAX_RETRIES):
         # If the request was successful, process the file
         if response.status_code == 200:
             content_type = response.headers.get('content-type', '')
-            if 'image/tiff' in content_type:
+            # MODIFIED LINE: Accept 'application/octet-stream' as a valid content type
+            if 'image/tiff' in content_type or 'application/octet-stream' in content_type:
                 with open(OUTPUT_PATH, "wb") as f:
                     for chunk in response.iter_content(chunk_size=8192):
                         f.write(chunk)
                 print(f"SUCCESS: DEM saved to {OUTPUT_PATH}")
                 sys.exit(0) # Exit successfully
             else:
-                print(f"ERROR: API returned content of type '{content_type}', not a GeoTIFF image.", file=sys.stderr)
-                print("Response text:", response.text, file=sys.stderr)
+                print(f"ERROR: API returned content of type '{content_type}', which is not a GeoTIFF image.", file=sys.stderr)
+                print("The first 100 bytes of the response are:", response.content[:100], file=sys.stderr)
                 sys.exit(1)
         
         # If we get a server error, wait and retry

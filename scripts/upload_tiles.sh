@@ -60,7 +60,7 @@ RCLONE_CMD="docker run --rm \
     rclone/rclone"
 
 # Sync basemap tiles
-BASENAME_PMTILES=$(find "$SOURCE_DIR" -name 'us-northeast-osm.pmtiles' -print -quit)
+BASENAME_PMTILES=$(find "$SOURCE_DIR" -name 'new-york.pmtiles' -print -quit)
 # FIX: Replaced 'if;' with a valid check to see if the file was found.
 if [ -n "$BASENAME_PMTILES" ]; then
     echo "Uploading basemap: $(basename "$BASENAME_PMTILES")"

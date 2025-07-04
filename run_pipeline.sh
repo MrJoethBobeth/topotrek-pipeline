@@ -2,25 +2,23 @@
 set -e
 
 # ==============================================================================
-# MASTER PIPELINE CONTROL SCRIPT (MODERNIZED)
+# MASTER PIPELINE CONTROL SCRIPT
+#
+# Orchestrates the entire Topotrek data processing pipeline.
 #
 # Usage: ./run_pipeline.sh [all|basemap|terrain|upload|clean]
 #
 # Arguments:
-#   all       - Runs the full pipeline: basemap, terrain, and upload.
+#   all       - (Default) Runs the full pipeline: basemap, terrain, and upload.
 #   basemap   - Generates only the vector basemap using Planetiler.
 #   terrain   - Generates only the Quantized Mesh terrain tiles using ctod.
 #   upload    - Uploads existing .pmtiles files from the ./data directory to R2.
 #   clean     - Removes generated data and build artifacts.
 # ==============================================================================
 
-# --- Argument Parsing ---
-if [ "$#" -ne 1 ]; then
-    echo "Usage: $0 [all|basemap|terrain|upload|clean]"
-    exit 1
-fi
-
-ARG=$1
+# --- Argument Handling ---
+# Set default action to 'all' if no argument is provided.
+ARG=${1:-all}
 
 # --- Function Definitions ---
 
@@ -28,7 +26,12 @@ run_basemap() {
     echo "========================================="
     echo "  STARTING BASEMAP GENERATION PIPELINE   "
     echo "========================================="
-   ./scripts/generate_basemap.sh
+    if [ -f "./scripts/generate_basemap.sh" ]; then
+        ./scripts/generate_basemap.sh
+    else
+        echo "Error: script 'generate_basemap.sh' not found."
+        exit 1
+    fi
     echo "========================================="
     echo "  BASEMAP GENERATION COMPLETE          "
     echo "========================================="
@@ -38,7 +41,12 @@ run_terrain() {
     echo "========================================="
     echo "  STARTING TERRAIN GENERATION PIPELINE   "
     echo "========================================="
-   ./scripts/generate_terrain.sh
+    if [ -f "./scripts/generate_terrain.sh" ]; then
+        ./scripts/generate_terrain.sh
+    else
+        echo "Error: script 'generate_terrain.sh' not found."
+        exit 1
+    fi
     echo "========================================="
     echo "  TERRAIN GENERATION COMPLETE          "
     echo "========================================="
@@ -48,7 +56,12 @@ run_upload() {
     echo "========================================="
     echo "  STARTING UPLOAD TO CLOUDFLARE R2     "
     echo "========================================="
-   ./scripts/upload_tiles.sh
+    if [ -f "./scripts/upload_tiles.sh" ]; then
+        ./scripts/upload_tiles.sh
+    else
+        echo "Error: script 'upload_tiles.sh' not found."
+        exit 1
+    fi
     echo "========================================="
     echo "  UPLOAD COMPLETE                      "
     echo "========================================="
@@ -58,20 +71,21 @@ run_clean() {
     echo "========================================="
     echo "  CLEANING PROJECT WORKSPACE           "
     echo "========================================="
-    # The docker-compose command was removed as it is no longer used.
-    # We can also add a docker system prune command to clean up any dangling images or containers.
-    echo "Pruning unused Docker images and containers..."
-    docker system prune -f
     echo "Removing generated data..."
-    rm -rf ./data/* ./build/*
-    # Keep .gitkeep files if they exist
+    # Clear out the data and build directories, but keep the directories and .gitkeep files
+    rm -f ./data/*.* ./build/*.*
     touch ./data/.gitkeep ./build/.gitkeep
+    
+    echo "Pruning unused Docker images, containers, and volumes..."
+    docker system prune -af
+
     echo "Cleanup complete."
     echo "========================================="
 }
 
 # --- Main Execution Logic ---
 
+# Use a case statement for clear, readable flow control.
 case $ARG in
     all)
         run_basemap
@@ -97,4 +111,4 @@ case $ARG in
         ;;
 esac
 
-echo "Pipeline execution finished successfully."
+echo "Pipeline execution finished successfully for target: $ARG"

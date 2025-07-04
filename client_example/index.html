@@ -1,97 +1,261 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="utf-8" />
-    <title>Topotrek PMTiles Viewer (Local Test)</title>
-    <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
-    <script src="https://unpkg.com/maplibre-gl@4.1.0/dist/maplibre-gl.js"></script>
-    <link href="https://unpkg.com/maplibre-gl@4.1.0/dist/maplibre-gl.css" rel="stylesheet" />
-    <script src="https://unpkg.com/pmtiles@2.10.0/dist/index.js"></script>
+    <title>TopoTrek - Northeast US Basemap</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- This app uses MapLibre GL JS for map rendering -->
+    <script src='https://unpkg.com/maplibre-gl@4.1.2/dist/maplibre-gl.js'></script>
+    <link href='https://unpkg.com/maplibre-gl@4.1.2/dist/maplibre-gl.css' rel='stylesheet' />
+    
+    <!-- We use the pmtiles library to allow MapLibre to read .pmtiles files -->
+    <script src="https://unpkg.com/pmtiles@2.11.0/dist/pmtiles.js"></script>
+
     <style>
-        body { margin: 0; padding: 0; }
-        #map { position: absolute; top: 0; bottom: 0; width: 100%; }
-        .instructions {
+        body { 
+            margin: 0; 
+            padding: 0; 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+        #map { 
+            position: absolute; 
+            top: 0; 
+            bottom: 0; 
+            width: 100%; 
+        }
+        /* Style for the loading overlay */
+        #loader {
             position: absolute;
-            top: 10px;
-            left: 10px;
-            background: rgba(255, 255, 255, 0.9);
-            padding: 10px;
-            border-radius: 8px;
-            font-family: sans-serif;
-            max-width: 400px;
-            z-index: 1000;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255, 255, 255, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            flex-direction: column;
+            transition: opacity 0.5s;
+        }
+        .spinner {
+            border: 8px solid #f3f3f3;
+            border-top: 8px solid #3498db;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            animation: spin 1s linear infinite;
+        }
+        #loader p {
+            margin-top: 20px;
+            font-size: 1.2em;
+            color: #333;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
     </style>
 </head>
 <body>
 
-<div class="instructions">
-    <strong>How to Test Locally:</strong>
-    <ol>
-        <li>Open a terminal in your project's root directory (the `topotrek-pipeline` folder).</li>
-        <li>Run this command: <br><code>python3 -m http.server</code></li>
-        <li>Open your web browser and go to:<br><strong>http://localhost:8000/index.html</strong></li>
-    </ol>
-    <p>This serves your project folder over HTTP, allowing the map to access the local PMTiles file.</p>
+<div id="map"></div>
+<div id="loader">
+    <div class="spinner"></div>
+    <p>Loading Northeast US Map...</p>
 </div>
 
-<div id="map"></div>
-
 <script>
-    const relativeBasemapUrl = '/data/us-northeast-osm.pmtiles';
+    document.addEventListener("DOMContentLoaded", function() {
+        const loader = document.getElementById('loader');
 
-    // FIX: Construct a full, absolute URL from the relative path.
-    // This resolves ambiguity and prevents the "callback is not a function" error.
-    const absoluteBasemapUrl = new URL(relativeBasemapUrl, window.location.href).href;
+        // The public URL to your PMTiles file in the Cloudflare R2 bucket.
+        const PMTILES_URL = "https://pub-1636e051e3464ab48e64a0f8d95a6444.r2.dev/basemap/us-northeast-osm.pmtiles";
 
-    // Initialize the PMTiles protocol for MapLibre
-    let protocol = new pmtiles.Protocol();
-    maplibregl.addProtocol("pmtiles", protocol.tile);
+        // 1. Initialize the PMTiles protocol.
+        // This teaches MapLibre how to request and parse vector tile data from a .pmtiles file.
+        let protocol = new pmtiles.Protocol();
+        maplibregl.addProtocol("pmtiles", protocol.tile);
 
-    const map = new maplibregl.Map({
-        container: 'map',
-        style: {
-            version: 8,
-            sources: {
-                'basemap-source': {
-                    type: 'vector',
-                    // The URL now uses the full, absolute path.
-                    url: `pmtiles://${absoluteBasemapUrl}`,
-                    attribution: '© OpenMapTiles © OpenStreetMap contributors'
+        // 2. Define the map style.
+        // This style object is adapted from the style.json in your repository.
+        // It tells the map what data to show (sources) and how to draw it (layers).
+        let style = {
+            "version": 8,
+            "name": "TopoTrek Base Style",
+            // Public sources for fonts and icons are used here to avoid dependency on private API keys.
+            "glyphs": "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
+            "sprite": "https://demotiles.maplibre.org/style/osm-bright/sprite",
+            "sources": {
+                // This is the primary data source, pointing to your custom PMTiles file.
+                "topotrek-basemap": {
+                    "type": "vector",
+                    "url": `pmtiles://${PMTILES_URL}`,
+                    "attribution": '© <a href="https://openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                 }
             },
-            layers: [
+            // The layers array defines the visual representation of the map features.
+            // Each layer references the 'topotrek-basemap' source.
+            "layers": [
                 {
-                    'id': 'background',
-                    'type': 'background',
-                    'paint': { 'background-color': '#f8f4f0' }
+                    "id": "background",
+                    "type": "background",
+                    "paint": {"background-color": "hsl(47, 26%, 88%)"}
                 },
                 {
-                    'id': 'water',
-                    'type': 'fill',
-                    'source': 'basemap-source',
-                    'source-layer': 'water',
-                    'paint': { 'fill-color': '#a0c8f0' }
+                    "id": "landuse-residential",
+                    "type": "fill",
+                    "source": "topotrek-basemap",
+                    "source-layer": "landuse",
+                    "filter": ["==", "class", "residential"],
+                    "paint": {"fill-color": "hsl(47, 26%, 88%)", "fill-opacity": 0.7}
                 },
                 {
-                    'id': 'roads',
-                    'type': 'line',
-                    'source': 'basemap-source',
-                    'source-layer': 'transportation',
-                    'paint': { 'line-color': '#999' }
+                    "id": "landcover_grass",
+                    "type": "fill",
+                    "source": "topotrek-basemap",
+                    "source-layer": "landcover",
+                    "filter": ["==", "class", "grass"],
+                    "paint": {"fill-color": "#d8e9c8", "fill-opacity": 1}
+                },
+                {
+                    "id": "landcover_wood",
+                    "type": "fill",
+                    "source": "topotrek-basemap",
+                    "source-layer": "landcover",
+                    "filter": ["==", "class", "wood"],
+                    "paint": {"fill-color": "#d8e9c8", "fill-opacity": 0.4}
+                },
+                {
+                    "id": "water",
+                    "type": "fill",
+                    "source": "topotrek-basemap",
+                    "source-layer": "water",
+                    "filter": ["all", ["!=", "brunnel", "tunnel"], ["==", "$type", "Polygon"]],
+                    "paint": {"fill-color": "hsl(205, 56%, 73%)"}
+                },
+                {
+                    "id": "waterway",
+                    "type": "line",
+                    "source": "topotrek-basemap",
+                    "source-layer": "waterway",
+                    "filter": ["==", "$type", "LineString"],
+                    "paint": {"line-color": "hsl(205, 56%, 73%)", "line-width": 1.2}
+                },
+                {
+                    "id": "landuse-industrial",
+                    "type": "fill",
+                    "source": "topotrek-basemap",
+                    "source-layer": "landuse",
+                    "filter": ["==", "class", "industrial"],
+                    "paint": {"fill-color": "hsl(47, 26%, 88%)"}
+                },
+                {
+                    "id": "park",
+                    "type": "fill",
+                    "source": "topotrek-basemap",
+                    "source-layer": "park",
+                    "paint": {"fill-color": "#d8e9c8", "fill-opacity": 0.7}
+                },
+                {
+                    "id": "road_path",
+                    "type": "line",
+                    "source": "topotrek-basemap",
+                    "source-layer": "transportation",
+                    "filter": ["==", "class", "path"],
+                    "paint": {"line-color": "#cba", "line-dasharray": [1.5, 2.5]}
+                },
+                {
+                    "id": "road_minor",
+                    "type": "line",
+                    "source": "topotrek-basemap",
+                    "source-layer": "transportation",
+                    "filter": ["in", "class", "minor", "service", "track"],
+                    "paint": {"line-color": "#fff", "line-width": 1.5}
+                },
+                {
+                    "id": "road_major",
+                    "type": "line",
+                    "source": "topotrek-basemap",
+                    "source-layer": "transportation",
+                    "filter": ["in", "class", "primary", "secondary", "tertiary", "trunk"],
+                    "paint": {"line-color": "#f3d19c", "line-width": 2.5}
+                },
+                {
+                    "id": "road_highway",
+                    "type": "line",
+                    "source": "topotrek-basemap",
+                    "source-layer": "transportation",
+                    "filter": ["==", "class", "motorway"],
+                    "paint": {"line-color": "#e8a2a2", "line-width": 3}
+                },
+                {
+                    "id": "building",
+                    "type": "fill",
+                    "source": "topotrek-basemap",
+                    "source-layer": "building",
+                    "paint": {"fill-color": "#d1b6a1", "fill-outline-color": "#c1a792"}
+                },
+                {
+                    "id": "place_label_city",
+                    "type": "symbol",
+                    "source": "topotrek-basemap",
+                    "source-layer": "place",
+                    "filter": ["==", "class", "city"],
+                    "layout": {
+                        "text-field": "{name:latin}",
+                        "text-font": ["Noto Sans Regular"],
+                        "text-size": 14
+                    },
+                    "paint": {"text-color": "#444", "text-halo-color": "#fff", "text-halo-width": 1}
+                },
+                {
+                    "id": "place_label_town",
+                    "type": "symbol",
+                    "source": "topotrek-basemap",
+                    "source-layer": "place",
+                    "filter": ["==", "class", "town"],
+                    "layout": {
+                        "text-field": "{name:latin}",
+                        "text-font": ["Noto Sans Regular"],
+                        "text-size": 12
+                    },
+                    "paint": {"text-color": "#555", "text-halo-color": "#fff", "text-halo-width": 1}
                 }
             ]
-        },
-        center: [-73.985, 40.748], // Centered on NYC
-        zoom: 9,
-        pitch: 0,
-        bearing: -20
+        };
+
+        // 3. Initialize the MapLibre Map.
+        const map = new maplibregl.Map({
+            container: 'map', // The ID of the div where the map will be rendered.
+            style: style,
+            // Center the map on the US Northeast, since that's what the data covers.
+            center: [-74.5, 41.8], // Approx. center of Northeast US
+            zoom: 6 // A good starting zoom level to see the region.
+        });
+
+        // 4. Add map controls for navigation.
+        map.addControl(new maplibregl.NavigationControl(), 'top-right');
+        map.addControl(new maplibregl.ScaleControl(), 'bottom-left');
+
+        // 5. Hide the loading overlay once the map has loaded its data.
+        map.on('load', function () {
+            loader.style.opacity = '0';
+            // Wait for the transition to finish before hiding it completely
+            setTimeout(() => {
+                loader.style.display = 'none';
+            }, 500);
+        });
+        
+        // Handle potential errors during map loading
+        map.on('error', function(e) {
+            console.error('A map error occurred:', e.error);
+            loader.innerHTML = `<p>Error loading map: ${e.error.message}</p>`;
+        });
+
     });
-
-    // Add navigation controls
-    map.addControl(new maplibregl.NavigationControl(), 'top-right');
-
 </script>
+
 </body>
 </html>

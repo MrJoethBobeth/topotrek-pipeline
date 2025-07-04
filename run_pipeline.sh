@@ -2,16 +2,16 @@
 set -e
 
 # ==============================================================================
-# MASTER PIPELINE CONTROL SCRIPT
+# MASTER PIPELINE CONTROL SCRIPT (V2)
 #
-# Orchestrates the entire Topotrek data processing pipeline.
+# Orchestrates the entire Topotrek data processing pipeline using the
+# new federated layer approach.
 #
-# Usage: ./run_pipeline.sh [all|basemap|terrain|upload|clean]
+# Usage: ./run_pipeline.sh [all|basemap|upload|clean]
 #
 # Arguments:
-#   all       - (Default) Runs the full pipeline: basemap, terrain, and upload.
-#   basemap   - Generates only the vector basemap using Planetiler.
-#   terrain   - Generates only the Quantized Mesh terrain tiles using ctod.
+#   all       - (Default) Runs the full pipeline: basemap and upload.
+#   basemap   - Generates all necessary map layers (vector basemap, hillshade).
 #   upload    - Uploads existing .pmtiles files from the ./data directory to R2.
 #   clean     - Removes generated data and build artifacts.
 # ==============================================================================
@@ -23,32 +23,19 @@ ARG=${1:-all}
 # --- Function Definitions ---
 
 run_basemap() {
-    echo "========================================="
-    echo "  STARTING BASEMAP GENERATION PIPELINE   "
-    echo "========================================="
-    if [ -f "./scripts/generate_basemap.sh" ]; then
-        ./scripts/generate_basemap.sh
+    echo "======================================================"
+    echo "  STARTING FEDERATED TILE GENERATION (BASEMAP & HILLSHADE)  "
+    echo "======================================================"
+    if [ -f "./scripts/2_generate_tiles.sh" ]; then
+        # This single script now handles data prep, vector tile generation,
+        # and raster hillshade generation.
+        bash ./scripts/2_generate_tiles.sh
     else
-        echo "Error: script 'generate_basemap.sh' not found."
+        echo "Error: script '2_generate_tiles.sh' not found."
         exit 1
     fi
     echo "========================================="
-    echo "  BASEMAP GENERATION COMPLETE          "
-    echo "========================================="
-}
-
-run_terrain() {
-    echo "========================================="
-    echo "  STARTING TERRAIN GENERATION PIPELINE   "
-    echo "========================================="
-    if [ -f "./scripts/generate_terrain.sh" ]; then
-        ./scripts/generate_terrain.sh
-    else
-        echo "Error: script 'generate_terrain.sh' not found."
-        exit 1
-    fi
-    echo "========================================="
-    echo "  TERRAIN GENERATION COMPLETE          "
+    echo "  TILE GENERATION COMPLETE             "
     echo "========================================="
 }
 
@@ -57,7 +44,7 @@ run_upload() {
     echo "  STARTING UPLOAD TO CLOUDFLARE R2     "
     echo "========================================="
     if [ -f "./scripts/upload_tiles.sh" ]; then
-        ./scripts/upload_tiles.sh
+        bash ./scripts/upload_tiles.sh
     else
         echo "Error: script 'upload_tiles.sh' not found."
         exit 1
@@ -72,10 +59,12 @@ run_clean() {
     echo "  CLEANING PROJECT WORKSPACE           "
     echo "========================================="
     echo "Removing generated data..."
-    # Clear out the data and build directories, but keep the directories and .gitkeep files
-    rm -f ./data/*.* ./build/*.*
-    touch ./data/.gitkeep ./build/.gitkeep
-    
+    # Clear out the data directory and subdirectories
+    rm -rf ./data/*
+    # Recreate the directories and gitkeep files
+    mkdir -p ./data/sources ./data/processed
+    touch ./data/.gitkeep ./data/sources/.gitkeep ./data/processed/.gitkeep
+
     echo "Pruning unused Docker images, containers, and volumes..."
     docker system prune -af
 
@@ -85,18 +74,13 @@ run_clean() {
 
 # --- Main Execution Logic ---
 
-# Use a case statement for clear, readable flow control.
 case $ARG in
     all)
         run_basemap
-        run_terrain
         run_upload
         ;;
     basemap)
         run_basemap
-        ;;
-    terrain)
-        run_terrain
         ;;
     upload)
         run_upload
@@ -106,7 +90,7 @@ case $ARG in
         ;;
     *)
         echo "Invalid argument: $ARG"
-        echo "Usage: $0 [all|basemap|terrain|upload|clean]"
+        echo "Usage: $0 [all|basemap|upload|clean]"
         exit 1
         ;;
 esac

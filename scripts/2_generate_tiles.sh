@@ -6,42 +6,41 @@ set +o allexport
 
 # --- Configuration ---
 PLANETILER_IMAGE="ghcr.io/onthegomap/planetiler:latest"
-GDAL_IMAGE="osgeo/gdal:latest"
-OUTPUT_DIR="../data"
-REGION_NAME=$(basename "${GEOFABRIK_PATH}") # e.g., us-northeast
+GDAL_IMAGE="ghcr.io/osgeo/gdal:ubuntu-small-latest"
+OUTPUT_DIR="./data"
+REGION_NAME=$(basename "${GEOFABRIK_PATH}")
 BASEMAP_OUTPUT="${OUTPUT_DIR}/${REGION_NAME}_basemap.pmtiles"
 HILLSHADE_INPUT="${OUTPUT_DIR}/processed/hillshade.tif"
 HILLSHADE_OUTPUT="${OUTPUT_DIR}/${REGION_NAME}_hillshade.pmtiles"
 
-# --- STEP 1: PREPARE AUTHORITATIVE DATA ---
-echo "--- Running Data Preparation Script ---"
-bash ./1_prepare_data.sh
-echo "--- Data Preparation Complete ---"
+# --- Data preparation step has been removed ---
+# That process should be run separately using: bash ./scripts/1_prepare_data.sh
 
 
-# --- STEP 2: GENERATE CUSTOM VECTOR BASEMAP ---
+# --- STEP 1: GENERATE CUSTOM VECTOR BASEMAP ---
 echo "--- Starting Planetiler to generate custom vector basemap... ---"
-# This command mounts the project folder and tells Planetiler to use your custom profile.
+# --- FIX: Use Planetiler's 'generate-custom' task to correctly compile and run the Java profile ---
+# This also reduces the allocated RAM to 10g.
 docker run --rm \
-  -e "JAVA_TOOL_OPTIONS=-Xmx16g" \
-  -v "$(pwd)/..:/work" \
+  -e "JAVA_TOOL_OPTIONS=-Xmx10g" \
+  -v "$(pwd):/work" \
   -w /work \
-  ${PLANETILER_IMAGE} java -cp planetiler.jar:planetiler_profile/ OutdoorProfile \
+  ${PLANETILER_IMAGE} \
+  generate-custom /work/planetiler_profile/OutdoorProfile.java \
   --area=${GEOFABRIK_PATH} \
   --bounds=${BBOX} \
   --download \
-  --output="data/${REGION_NAME}_basemap.pmtiles"
+  --output="/work/data/${REGION_NAME}_basemap.pmtiles"
 
 echo "--- Basemap generation complete: ${BASEMAP_OUTPUT} ---"
 
 
-# --- STEP 3: GENERATE RASTER HILLSHADE TILES ---
+# --- STEP 2: GENERATE RASTER HILLSHADE TILES ---
 echo "--- Generating raster hillshade PMTiles... ---"
-# Use rio-pmtiles (installed via pip in the gdal container) to convert the GeoTIFF
 docker run --rm \
-  -v "$(pwd)/..:/work" \
+  -v "$(pwd):/work" \
   -w /work \
-  ${GDAL_IMAGE} /bin/bash -c "pip install rio-pmtiles && rio pmtiles ${HILLSHADE_INPUT} ${HILLSHADE_OUTPUT} --zoom-range 8-14"
+  ${GDAL_IMAGE} /bin/bash -c "pip install rio-pmtiles && rio pmtiles /work/${HILLSHADE_INPUT} /work/${HILLSHADE_OUTPUT} --zoom-range 8-14"
 
 echo "--- Hillshade generation complete: ${HILLSHADE_OUTPUT} ---"
 echo "--- ENTIRE PIPELINE SUCCESSFUL. ---"

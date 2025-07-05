@@ -71,15 +71,12 @@ public class OutdoorProfile implements Profile {
     }
 
     static void run(Arguments args) throws Exception {
-        String area = args.getString("area", "geofabrik area to download", "monaco");
+        // Let Planetiler handle argument parsing for sources and output
         Planetiler.create(args)
             .setProfile(new OutdoorProfile())
-            // Register OSM Source
-            .addOsmSource("osm", Path.of("data", "sources", area + ".osm.pbf"), "geofabrik:" + area)
-            // Register Contours Source
+            // Register any non-OSM sources here.
+            // The OSM source will be configured automatically by the --area argument.
             .addShapefileSource("contours", Path.of("data", "processed", "contours.gpkg"))
-            // --- The PAD-US source registration has been removed ---
-            .overwriteOutput("pmtiles", Path.of("data", "output.pmtiles"))
             .run();
     }
 }

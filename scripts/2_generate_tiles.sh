@@ -11,7 +11,7 @@ OUTPUT_DIR="./data"
 REGION_NAME=$(basename "${GEOFABRIK_PATH}")
 
 # --- File Paths ---
-OMT_JAR_URL="https://github.com/openmaptiles/planetiler-openmaptiles/releases/download/v3.1.0/openmaptiles.jar"
+OMT_JAR_URL="https://github.com/openmaptiles/planetiler-openmaptiles/releases/download/v3.15/planetiler-openmaptiles.jar"
 OMT_JAR_PATH="${OUTPUT_DIR}/openmaptiles.jar"
 OMT_OUTPUT="${OUTPUT_DIR}/${REGION_NAME}_openmaptiles.pmtiles"
 CONTOUR_INPUT="./data/processed/contours.gpkg"
@@ -46,37 +46,38 @@ fi
 
 # --- STEP 2: GENERATE BASEMAP USING OPENMAPTILES PROFILE ---
 echo "--- Generating basemap with OpenMapTiles profile... ---"
-# Construct the full download URL to bypass the Geofabrik name lookup.
-OSM_DOWNLOAD_URL="https://download.geofabrik.de/${GEOFABRIK_PATH}-latest.osm.pbf"
-echo "Using direct download URL: ${OSM_DOWNLOAD_URL}"
+if [ ! -f "$OMT_OUTPUT" ]; then
+    # Construct the full download URL to bypass the Geofabrik name lookup.
+    OSM_DOWNLOAD_URL="https://download.geofabrik.de/${GEOFABRIK_PATH}-latest.osm.pbf"
+    echo "Using direct download URL: ${OSM_DOWNLOAD_URL}"
 
-# This command runs Planetiler using the pre-compiled OpenMapTiles JAR.
-docker run --rm \
-  -e "JAVA_TOOL_OPTIONS=-Xmx10g" \
-  -v "$(pwd)/data:/data" \
-  ${PLANETILER_IMAGE} \
-  --osm-url="${OSM_DOWNLOAD_URL}" \
-  --bounds=${BBOX} \
-  --download \
-  --output="/data/$(basename ${OMT_OUTPUT})" \
-  --profile="/data/$(basename ${OMT_JAR_PATH})"
-
-echo "--- OpenMapTiles basemap generation complete: ${OMT_OUTPUT} ---"
+    # This command runs Planetiler using the pre-compiled OpenMapTiles JAR.
+    docker run --rm \
+      -e "JAVA_TOOL_OPTIONS=-Xmx10g" \
+      -v "$(pwd)/data:/data" \
+      ${PLANETILER_IMAGE} \
+      --osm-url="${OSM_DOWNLOAD_URL}" \
+      --bounds=${BBOX} \
+      --download \
+      --output="/data/$(basename ${OMT_OUTPUT})" \
+      --profile="/data/$(basename ${OMT_JAR_PATH})"
+    echo "--- OpenMapTiles basemap generation complete: ${OMT_OUTPUT} ---"
+else
+    echo "--- SKIPPING: Basemap file ${OMT_OUTPUT} already exists. ---"
+fi
 
 # --- STEP 3: GENERATE CONTOUR LINES LAYER ---
 echo "--- Generating custom contour lines layer... ---"
-# This command compiles and runs our new, simple ContourProfile.java.
+# This command lets Planetiler compile and run the custom profile directly,
+# which is more robust than manual javac/java commands.
 docker run --rm \
-  --entrypoint /bin/bash \
-  -e "JAVA_TOOL_OPTIONS=-Xmx2g" \
+  -e "JAVA_TOOL_OPTIONS=-Xmx4g" \
   -v "$(pwd):/work" \
   -w /work \
   ${PLANETILER_IMAGE} \
-  -c "
-    javac -cp \"/work/data/openmaptiles.jar\" planetiler_profile/ContourProfile.java && \
-    java -cp \"/work/data/openmaptiles.jar:. \" planetiler_profile.ContourProfile \
-    --output=\"/work/data/$(basename ${CONTOUR_OUTPUT})\"
-  "
+  --profile=planetiler_profile/ContourProfile.java \
+  --output="data/$(basename ${CONTOUR_OUTPUT})" \
+  --force
 echo "--- Contour layer generation complete: ${CONTOUR_OUTPUT} ---"
 
 # --- STEP 4: MERGE BASEMAP AND CONTOURS ---
@@ -86,7 +87,7 @@ docker run --rm \
   -v "$(pwd)/data:/data" \
   ${PLANETILER_IMAGE} \
   merge "/data/$(basename ${OMT_OUTPUT})" "/data/$(basename ${CONTOUR_OUTPUT})" \
-  --output="/data/$(basename ${FINAL_BASEMAP_OUTPUT})"
+  --output="/data/$(basename ${FINAL_BASEMAP_OUTPUT})" --force
 
 echo "--- Merge complete. Final basemap at: ${FINAL_BASEMAP_OUTPUT} ---"
 

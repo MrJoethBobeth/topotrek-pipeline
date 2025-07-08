@@ -1,10 +1,10 @@
-// Save as planetiler_profile/ContourProfile.java
+package planetiler_profile;
+
 import com.onthegomap.planetiler.FeatureCollector;
 import com.onthegomap.planetiler.Planetiler;
 import com.onthegomap.planetiler.Profile;
 import com.onthegomap.planetiler.config.Arguments;
 import com.onthegomap.planetiler.reader.SourceFeature;
-import com.onthegomap.planetiler.source.Shapefile;
 
 import java.nio.file.Path;
 
@@ -22,8 +22,8 @@ public class ContourProfile implements Profile {
                 // The 'elev' attribute from the shapefile is mapped to 'ele' in the tiles.
                 .setAttr("ele", sourceFeature.getTag("elev"))
                 .setMinZoom(11)
-                // Set a high z-order to ensure contours render on top of other features.
-                .setZOrder(100);
+                // Use setSortKey for z-ordering in recent Planetiler versions
+                .setSortKey(100);
         }
     }
 
@@ -44,12 +44,11 @@ public class ContourProfile implements Profile {
 
     static void run(Arguments args) throws Exception {
         // This profile does not process any OSM data, so we don't need an area.
-        // It only processes the single, specified shapefile.
+        // It only processes the single, specified GeoPackage.
         Planetiler.create(args)
             .setProfile(new ContourProfile())
-            .addSource(new Shapefile("contours", Path.of("data", "processed", "contours.gpkg")))
-            // Overwrite the output file if it already exists.
-            .overwrite()
+            // The addGeoPackageSource method now requires the layer name as the third argument.
+            .addGeoPackageSource("contours", Path.of("data", "processed", "contours.gpkg"), "contours")
             .run();
     }
 }

@@ -15,7 +15,7 @@ MAX_RETRIES = 3 # Number of times to retry on failure
 API_URL = "https://portal.opentopography.org/API/globaldem"
 
 params = {
-    "demtype": "SRTMGL3",
+    "demtype": "COP30",
     "south": BBOX[1],
     "north": BBOX[3],
     "west": BBOX[0],

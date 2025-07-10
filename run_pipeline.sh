@@ -2,16 +2,16 @@
 set -e
 
 # ==============================================================================
-# MASTER PIPELINE CONTROL SCRIPT (V2)
+# MASTER PIPELINE CONTROL SCRIPT (V3)
 #
-# Orchestrates the entire Topotrek data processing pipeline using the
-# new federated layer approach.
+# Orchestrates the entire Topotrek data processing pipeline.
 #
-# Usage: ./run_pipeline.sh [all|basemap|upload|clean]
+# Usage: ./run_pipeline.sh [all|basemap|contours|upload|clean]
 #
 # Arguments:
-#   all       - (Default) Runs the full pipeline: basemap and upload.
-#   basemap   - Generates all necessary map layers (vector basemap, hillshade).
+#   all       - (Default) Runs the full pipeline: basemap, contours, and upload.
+#   basemap   - Generates only the vector basemap from OSM data.
+#   contours  - Generates only the vector contour tiles from DEM data.
 #   upload    - Uploads existing .pmtiles files from the ./data directory to R2.
 #   clean     - Removes generated data and build artifacts.
 # ==============================================================================
@@ -24,20 +24,34 @@ ARG=${1:-all}
 
 run_basemap() {
     echo "======================================================"
-    echo "  STARTING FEDERATED TILE GENERATION (BASEMAP & HILLSHADE)  "
+    echo "  STARTING VECTOR BASEMAP GENERATION  "
     echo "======================================================"
-    if [ -f "./scripts/2_generate_tiles.sh" ]; then
-        # This single script now handles data prep, vector tile generation,
-        # and raster hillshade generation.
-        bash ./scripts/2_generate_tiles.sh
+    if [ -f "./scripts/2a_generate_basemap.sh" ]; then
+        bash ./scripts/2a_generate_basemap.sh
     else
-        echo "Error: script '2_generate_tiles.sh' not found."
+        echo "Error: script '2a_generate_basemap.sh' not found."
         exit 1
     fi
     echo "========================================="
-    echo "  TILE GENERATION COMPLETE             "
+    echo "  BASEMAP GENERATION COMPLETE          "
     echo "========================================="
 }
+
+run_contour() {
+    echo "======================================================"
+    echo "  STARTING VECTOR CONTOUR TILE GENERATION  "
+    echo "======================================================"
+    if [ -f "./scripts/2b_generate_contours.sh" ]; then
+        bash ./scripts/2b_generate_contours.sh
+    else
+        echo "Error: script '2b_generate_contours.sh' not found."
+        exit 1
+    fi
+    echo "========================================="
+    echo "  CONTOUR TILE GENERATION COMPLETE     "
+    echo "========================================="
+}
+
 
 run_upload() {
     echo "========================================="
@@ -77,10 +91,14 @@ run_clean() {
 case $ARG in
     all)
         run_basemap
+        run_contour
         run_upload
         ;;
     basemap)
         run_basemap
+        ;;
+    contours)
+        run_contour
         ;;
     upload)
         run_upload
@@ -90,7 +108,7 @@ case $ARG in
         ;;
     *)
         echo "Invalid argument: $ARG"
-        echo "Usage: $0 [all|basemap|upload|clean]"
+        echo "Usage: $0 [all|basemap|contours|upload|clean]"
         exit 1
         ;;
 esac

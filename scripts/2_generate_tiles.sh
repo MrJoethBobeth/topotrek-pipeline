@@ -51,7 +51,7 @@ echo "--- Generating vector basemap from OSM data... ---"
 
 if [ ! -f "$BASEMAP_OUTPUT" ]; then
     docker run --rm \
-      -e "JAVA_TOOL_OPTIONS=-Xmx16g" \
+      -e "JAVA_TOOL_OPTIONS=-Xmx10g" \
       -v "$(pwd):/work" \
       -w /work \
       ${PLANETILER_IMAGE} \

@@ -13,7 +13,6 @@ PROCESSED_DIR="./data/processed"
 mkdir -p ${SOURCES_DIR} ${PROCESSED_DIR}
 
 DEM_RAW="${SOURCES_DIR}/dem_raw.tif"
-HILLSHADE_RASTER="${PROCESSED_DIR}/hillshade.tif"
 CONTOURS_VECTOR="${PROCESSED_DIR}/contours.gpkg"
 
 GDAL_IMAGE="ghcr.io/osgeo/gdal:ubuntu-small-latest"
@@ -31,12 +30,12 @@ $PYTHON_CMD /bin/bash -c "pip install requests && python3 1a_fetch_dem.py '${OPE
 
 
 # Generate Contour Lines inside a container
-echo "Generating contour lines..."
+echo "Generating contour lines from DEM..."
 $GDAL_CMD gdal_contour -a elev -i 40 "/data/sources/dem_raw.tif" "/data/processed/contours.gpkg"
 
-# Generate Hillshade Raster inside a container
-echo "Generating hillshade..."
-$GDAL_CMD gdaldem hillshade -of GTiff "/data/sources/dem_raw.tif" "/data/processed/hillshade.tif"
+# REMOVED: The hillshade generation step is no longer needed.
+# echo "Generating hillshade..."
+# $GDAL_CMD gdaldem hillshade -of GTiff "/data/sources/dem_raw.tif" "/data/processed/hillshade.tif"
 
 
-echo "--- Data preparation complete (Skipping PAD-US). ---"
+echo "--- Terrain data preparation complete. ---"

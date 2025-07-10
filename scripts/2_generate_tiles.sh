@@ -6,9 +6,6 @@ set +o allexport
 
 # --- Configuration ---
 PLANETILER_IMAGE="ghcr.io/onthegomap/planetiler:latest"
-PMTILES_IMAGE="protomaps/go-pmtiles:latest"
-# A python image for running rio-mbtiles
-RIO_IMAGE="python:3.9-slim"
 OUTPUT_DIR="./data"
 REGION_NAME=$(basename "${GEOFABRIK_PATH}")
 
@@ -16,12 +13,19 @@ REGION_NAME=$(basename "${GEOFABRIK_PATH}")
 OSM_PBF_URL="https://download.geofabrik.de/${GEOFABRIK_PATH}-latest.osm.pbf"
 OSM_PBF_PATH="${OUTPUT_DIR}/sources/${REGION_NAME}-latest.osm.pbf"
 CONTOUR_GPKG_PATH="data/processed/contours.gpkg"
-FINAL_BASEMAP_OUTPUT="data/${REGION_NAME}_basemap.pmtiles"
-HILLSHADE_INPUT="data/processed/hillshade.tif"
-# Temporary mbtiles file for the intermediate step
-HILLSHADE_MBTILES="data/processed/hillshade.mbtiles"
-HILLSHADE_OUTPUT="data/${REGION_NAME}_hillshade.pmtiles"
-COMBINED_PROFILE="planetiler_profile/CombinedProfile.java"
+
+# Define output filenames for the separate layers
+BASEMAP_OUTPUT="data/${REGION_NAME}_basemap.pmtiles"
+CONTOUR_OUTPUT="data/${REGION_NAME}_contours.pmtiles"
+
+# Define the Planetiler profiles to be used
+# NOTE: You will need a profile that just processes OSM data.
+# The default OpenMapTiles profile is a good starting point.
+# We assume you have a custom profile for the basemap. For this example,
+# we will reference a hypothetical 'OutdoorProfile.java' that you would
+# modify to ONLY handle OSM data (i.e., remove contour logic).
+BASEMAP_PROFILE="planetiler_profile/OutdoorProfile.java" # Assumes this is modified to be OSM-only
+CONTOUR_PROFILE="planetiler_profile/ContourProfile.java"
 
 # --- STEP 1: PREPARE DATA SOURCES (OSM and Contours) ---
 echo "--- Preparing data sources... ---"
@@ -42,60 +46,49 @@ else
 fi
 
 
-# --- STEP 2: GENERATE COMBINED BASEMAP (OSM + CONTOURS) ---
-echo "--- Generating combined basemap with custom profile... ---"
+# --- STEP 2: GENERATE VECTOR BASEMAP (OSM ONLY) ---
+echo "--- Generating vector basemap from OSM data... ---"
 
-if [ ! -f "$FINAL_BASEMAP_OUTPUT" ]; then
+if [ ! -f "$BASEMAP_OUTPUT" ]; then
     docker run --rm \
       -e "JAVA_TOOL_OPTIONS=-Xmx16g" \
       -v "$(pwd):/work" \
       -w /work \
       ${PLANETILER_IMAGE} \
-      --profile="${COMBINED_PROFILE}" \
-      --output="${FINAL_BASEMAP_OUTPUT}" \
+      --profile="${BASEMAP_PROFILE}" \
+      --output="${BASEMAP_OUTPUT}" \
       --bounds=${BBOX} \
-      --osm_path="${OSM_PBF_PATH}" \
       --force
-    echo "--- Combined basemap generation complete: ${FINAL_BASEMAP_OUTPUT} ---"
+    echo "--- Basemap generation complete: ${BASEMAP_OUTPUT} ---"
 else
-    echo "--- SKIPPING: Final basemap file ${FINAL_BASEMAP_OUTPUT} already exists. ---"
+    echo "--- SKIPPING: Basemap file ${BASEMAP_OUTPUT} already exists. ---"
 fi
 
 
-# --- STEP 3: GENERATE RASTER HILLSHADE TILES ---
-echo "--- Generating raster hillshade PMTiles... ---"
-if [ ! -f "$HILLSHADE_OUTPUT" ]; then
-    if [ ! -f "$HILLSHADE_INPUT" ]; then
-        echo "Error: Hillshade input file not found at ${HILLSHADE_INPUT}"
+# --- STEP 3: GENERATE SEPARATE CONTOUR TILES ---
+echo "--- Generating separate vector contour tiles... ---"
+if [ ! -f "$CONTOUR_OUTPUT" ]; then
+    if [ ! -f "$CONTOUR_GPKG_PATH" ]; then
+        echo "Error: Contour input file not found at ${CONTOUR_GPKG_PATH}"
         echo "You may need to run ./scripts/1_prepare_data.sh first."
         exit 1
     fi
 
-    # Clean up previous intermediate file if it exists
-    rm -f ${HILLSHADE_MBTILES}
-
-    echo "--- Step 3a: Converting GeoTIFF to MBTiles with rio-mbtiles... ---"
-    # This is a more robust method than gdal2tiles. It creates a single MBTiles file directly.
-    # We must first install the libexpat1 system dependency for rasterio to work correctly.
     docker run --rm \
-      -v "$(pwd)/data:/data" \
-      ${RIO_IMAGE} \
-      /bin/bash -c "apt-get update && apt-get install -y libexpat1 && pip install rasterio rio-mbtiles && rio mbtiles /data/processed/hillshade.tif -o /data/processed/hillshade.mbtiles --zoom-levels 7..14"
-
-    echo "--- Step 3b: Packaging MBTiles into PMTiles with the 'pmtiles' CLI... ---"
-    # The pmtiles tool efficiently converts the mbtiles archive to the final pmtiles format.
-    docker run --rm \
-      -v "$(pwd)/data:/data" \
-      ${PMTILES_IMAGE} \
-      convert "/data/processed/hillshade.mbtiles" "/data/$(basename ${HILLSHADE_OUTPUT})"
-
-    # Clean up the intermediate mbtiles file
-    echo "--- Cleaning up intermediate MBTiles file... ---"
-    rm -f ${HILLSHADE_MBTILES}
-
-    echo "--- Hillshade generation complete: ${HILLSHADE_OUTPUT} ---"
+      -e "JAVA_TOOL_OPTIONS=-Xmx8g" \
+      -v "$(pwd):/work" \
+      -w /work \
+      ${PLANETILER_IMAGE} \
+      --profile="${CONTOUR_PROFILE}" \
+      --output="${CONTOUR_OUTPUT}" \
+      --bounds=${BBOX} \
+      --force
+      
+    echo "--- Contour tile generation complete: ${CONTOUR_OUTPUT} ---"
 else
-    echo "--- SKIPPING: Hillshade file ${HILLSHADE_OUTPUT} already exists. ---"
+    echo "--- SKIPPING: Contour tile file ${CONTOUR_OUTPUT} already exists. ---"
 fi
+
+# --- REMOVED: The entire hillshade generation process has been taken out. ---
 
 echo "--- TILE GENERATION SCRIPT FINISHED SUCCESSFULLY. ---"
